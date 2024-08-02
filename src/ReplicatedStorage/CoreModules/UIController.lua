@@ -174,8 +174,8 @@ function UIController:DisableTips()
     self:RemoveEventFunction("MouseLeave", mouseLeaveId)
     
     if self.Tooltip then
-        self.Tooltip = nil
         self.Tooltip:Destroy()
+        self.Tooltip = nil
     end
 end
 
