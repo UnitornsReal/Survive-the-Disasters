@@ -1,8 +1,10 @@
 # Project place file
 /TimeStealers.rbxlx
 
+# Normal Files
+.gitignore
+.vscode
+
 # Roblox Studio lock files
 /*.rbxlx.lock
 /*.rbxl.lock
-/.gitignore
-/.vscode
