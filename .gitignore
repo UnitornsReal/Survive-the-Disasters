@@ -1,5 +1,4 @@
-# Project place file
-
-# Roblox Studio lock files
-/*.rbxlx.lock
-/*.rbxl.lock
+# Main Files
+*.rbxl
+.vscode
+.gitignore
