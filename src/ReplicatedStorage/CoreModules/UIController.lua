@@ -41,7 +41,17 @@ export type UIController = {
         OriginalSize: UDim2    }
 }
 
+type DropShadow = {
+    Shape: string,
+    Spread: number?,
+    Offset: Vector2?,
+    Transparency: number?,
+    Color: Color3?,
+    Events: {string}?
+}
+
 --// Services
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
@@ -56,6 +66,7 @@ function UIController.Connection(Interface: GuiObject ) : UIController
     local self = setmetatable({}, {__index = UIController})
 
     self.Interface = Interface
+    self.DropShadow = nil
     self.EventConnections = {}
 
     self.TweenValues = {
@@ -118,7 +129,7 @@ function UIController:RegisterTweenEvent(eventName: string, size: UDim2)
 end
 
 function UIController:RegisterDefaultTweens()
-    self:RegisterTweenEvent("MouseButton1Down", UDim2.fromScale(self.TweenValues.OriginalSize.X.Scale - 0.01, self.TweenValues.OriginalSize.Y.Scale - 0.01))
+    self:RegisterTweenEvent("MouseButton1Down", UDim2.fromScale(self.TweenValues.OriginalSize.X.Scale - 0.025, self.TweenValues.OriginalSize.Y.Scale - 0.025))
     self:RegisterTweenEvent("MouseButton1Up", self.TweenValues.OriginalSize)
 
     self:RegisterTweenEvent("MouseEnter", UDim2.fromScale(self.TweenValues.OriginalSize.X.Scale + 0.005, self.TweenValues.OriginalSize.Y.Scale + 0.005))
@@ -176,6 +187,40 @@ function UIController:DisableTips()
     if self.Tooltip then
         self.Tooltip:Destroy()
         self.Tooltip = nil
+    end
+end
+
+--// Drop Shadows
+function UIController:AddShadow(properties: DropShadow)
+    local shadow = ReplicatedStorage.DropShadows:FindFirstChild(properties.Shape.."Shadow")
+    if not shadow then return false end
+
+    local function createShadow()
+        if self.DropShadow then return end
+        self.DropShadow = shadow:Clone()
+        self.DropShadow.Size = UDim2.new(1 + (properties.Spread/100 or 0.1), 0, 1 + (properties.Spread/100 or 0.1), 0)
+        self.DropShadow.Parent = self.Interface
+        self.DropShadow.Shadow.ImageColor3 = properties.Color or Color3.new(0, 0, 0)
+        self.DropShadow.Shadow.ImageTransparency = properties.Transparency
+        if properties.Offset then self.DropShadow.Position = self.DropShadow.Position + UDim2.fromScale(properties.Offset.X/100, properties.Offset.Y/100) end
+        self.DropShadow.ZIndex = 0
+        self.DropShadow.Shadow.ZIndex = 0
+    end
+
+    if properties.Events and #properties.Events > 0 then
+        self:RegisterEvent(properties.Events[1], function ()
+            createShadow()
+        end)
+
+        if #properties.Events > 1 then
+            self:RegisterEvent(properties.Events[2], function ()
+                if not self.DropShadow then return end
+                self.DropShadow:Destroy()
+                self.DropShadow = nil
+            end)
+        end
+    else
+        createShadow()
     end
 end
 

@@ -5,21 +5,30 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 --// Variables
 local Client: Player = Players.LocalPlayer
 local PlayerGui = Client.PlayerGui
-local TestBtn = PlayerGui:WaitForChild("MainGui").Test
+local Bottom = PlayerGui:WaitForChild("MainGui").Bottom
+local Holder = Bottom.Holder
 
 --// Modules
 local FrameController = {}
 local Modules = require(ReplicatedStorage.Modules)
 
 function FrameController.Init()
-    local testClick = Modules.UIController.Connection(TestBtn)
-    testClick:RegisterDefaultTweens()
+    for _, button in pairs(Holder:GetChildren()) do
+        if button:IsA("TextButton") then
+            local click = Modules.UIController.Connection(button)
+            local uiGradient = button.TextLabel.UIGradient
+            local firstColor = uiGradient.Color.Keypoints[1].Value
 
-    testClick:EnableTips("Test Tip", "Just a hover test, don't mind me!")
-
-    task.wait(10)
-
-    testClick:DisableTips()
+            click:RegisterDefaultTweens()
+            click:AddShadow({
+                Shape = "Circle", 
+                Spread = 70,
+                Transparency = 0.25,
+                Color = firstColor,
+                Events = {"MouseEnter", "MouseLeave"}
+            })
+        end
+    end
 end
 
 return FrameController

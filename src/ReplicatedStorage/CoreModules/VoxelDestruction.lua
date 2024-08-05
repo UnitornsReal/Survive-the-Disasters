@@ -5,193 +5,212 @@
     local part = script.Parent
     local voxelSize = 1
     local hitbox = VoxelDestruction.NewHitbox(part, voxelSize)
-    hitbox:StartDestruction(time) -- Time is optional, without the time it'll just keep going until hitbox:DisableDestruction() is called
+    hitbox:StartDestruction(time) -- Time is optional; without it, destruction will continue until hitbox:DisableDestruction() is called
 ]]
 
---// Type
-export type Hitbox = {
-    hitBox: Part,
-    isActive: boolean,
-    applyForce: boolean,
-    voxelSize: number,
-}
-
 --// Variables
-local MAX_PARTS_PER_FRAME = 10 -- Limit the number of parts processed per frame
-local partPool = {} -- Object pool for parts
+local partCache = {}
+local poolSize = 1000
+local destructTaG = "Destructible"
 
---// Module
+--// Modules
 local VoxelDestruction = {}
 
 --// Functions
+local function initializeCache()
+    for i = 1, poolSize do
+        local part = Instance.new("Part")
+        part.Parent = nil -- Keep parts out of workspace until needed
+        part.Anchored = true
+        part.CanCollide = false
+        part.Transparency = 1 -- Make parts invisible until used
+        table.insert(partCache, part)
+    end
+end
 
--- Retrieve the root model or folder of a part
-local function GetRoot(part: Part) : Model | Folder
+local function getPartFromCache(): BasePart
+    if #partCache > 0 then
+        local part = table.remove(partCache)
+        part.Transparency = 0 -- Make part visible when used
+        part.Parent = workspace -- Add part to workspace
+        return part
+    else
+        return Instance.new("Part") -- Create a new part if cache is empty
+    end
+end
+
+local function returnPartToCache(part: BasePart)
+    part.Anchored = true
+    part.CanCollide = false
+    part.Transparency = 1 -- Hide the part
+    part.CFrame = CFrame.new(0, -100, 0) -- Move it out of the way
+    part.Parent = nil -- Remove part from workspace
+    part:ClearAllChildren()
+    table.insert(partCache, part)
+end
+
+local function getRoot(part: Part) : Part | Model | Folder
     if part.Parent == workspace then return part end
 
-    while part.Parent ~= workspace do
+    while part.Parent ~= workspace and not part.Parent:HasTag("Map") do
         part = part.Parent
     end
 
     return part
 end
 
--- Check if a part is large enough to be divided
+local function partDividable(part: BasePart)
+    if part.Parent ~= workspace and not part.Parent:HasTag("Map") then
+        part = getRoot(part)
+    end
+
+	if not part:HasTag(destructTaG) then return end
+
+	return true
+end
+
+local function clonePart(template): BasePart
+    -- Use part cache instead of cloning directly
+    local part = getPartFromCache()
+
+    for _, child in pairs(template:GetChildren()) do
+        local newChild = child:Clone()
+        newChild.Parent = part
+    end
+
+    part.Size = template.Size
+    part.Anchored = template.Anchored
+    part.CanCollide = template.CanCollide
+    part.CFrame = template.CFrame
+    part.Color = template.Color
+    part.Material = template.Material
+    part.Parent = template.Parent
+    part.Name = template.Name
+
+    if template:HasTag(destructTaG) then part:AddTag("Destructible") end
+
+    return part
+end
+
 local function SizeCheck(part: Part, voxelSize: number) : boolean
     local x, y, z = part.Size.X, part.Size.Y, part.Size.Z
     return (x/2 >= voxelSize) or (y/2 >= voxelSize) or (z/2 >= voxelSize)
 end
 
--- Determine if a part can be divided
-local function IsDividable(part: Part) : boolean
-    local partParent = GetRoot(part)
-    if not partParent:HasTag("Destructable") then return false end
-    if not part:IsA("Part") and not part:IsA("UnionOperation") then return false end
-    return true
+--// Core Functions
+function VoxelDestruction.Init()
+    initializeCache()
 end
 
--- Copy relevant properties from one part to another
-local function CopyProperties(source: Part, target: Part)
-    target.Color = source.Color
-    target.Material = source.Material
-    target.Transparency = source.Transparency
-    target.Reflectance = source.Reflectance
-    target.Anchored = source.Anchored
-    target.CanCollide = source.CanCollide
-    target.CastShadow = source.CastShadow
-
-    if #source:GetChildren() > 0 then
-        for _, child in pairs(source:GetChildren()) do
-            local newChild = child:Clone()
-            newChild.Parent = target
-        end
-    end
-    -- Add more properties as needed
-end
-
--- Retrieve a part from the pool or clone a new one if none are available
-local function GetPooledPart(template: Part) : Part
-    local part = table.remove(partPool) or template:Clone()
-    CopyProperties(template, part) -- Copy properties from the template to the pooled part
-    part:AddTag("Destructable")
-    part.Parent = template.Parent
-    return part
-end
-
--- Return a part to the pool for reuse
-local function ReturnPartToPool(part: Part)
-    part:ClearAllChildren()
-    part:RemoveTag("Destructable")
-    part.Anchored = true
-    part.AssemblyLinearVelocity = Vector3.zero
-    part.Size = Vector3.new(1, 1, 1)
-    part.CFrame = CFrame.new()
-    part:SetAttribute("Reused", true) -- For debugging purposes
-    part.Parent = nil -- Temporarily remove it from the workspace
-    table.insert(partPool, part)
-end
-
--- Divide a part into two smaller parts along a given axis
-local function DividePart(part: Part, axis: Vector3)
-    local a = GetPooledPart(part)
-    local b = GetPooledPart(part)
-
-    a.Size = part.Size * (-(axis/2) + Vector3.new(1,1,1))
-    a.CFrame = part.CFrame * CFrame.new(-part.Size * (Vector3.new(1,1,1) * axis/4))
-
-    b.Size = part.Size * (-(axis/2) + Vector3.new(1,1,1))
-    b.CFrame = part.CFrame * CFrame.new(part.Size * (Vector3.new(1,1,1) * axis/4))
-end
-
--- Subdivide a part into smaller parts based on the voxel size
-local function SubdividePart(part: Part, voxelSize: number) : boolean
-    local check = SizeCheck(part, voxelSize)
-    if not check then return false end
-    
-    local x, y, z = part.Size.X, part.Size.Y, part.Size.Z
-    local greaterDimension  = math.max(part.Size.X, part.Size.Y, part.Size.Z) :: number
-    local axis: Vector3 = Vector3.new(
-        (x == greaterDimension) and 1 or 0,
-        (y == greaterDimension) and 1 or 0,
-        (z == greaterDimension) and 1 or 0
-    )
-
-    DividePart(part, axis)
-    ReturnPartToPool(part) -- Return the old part to the pool
-
-    return true
-end
-
--- Apply random force to a part
-local function applyForce(part: Part, force: number)
-    part.AssemblyLinearVelocity = Vector3.new(math.random(-force, force), math.random(-force, force), math.random(-force, force))
-end
-
---// Main Functions
-
--- Create a new hitbox instance
-function VoxelDestruction.NewHitbox(hitBox: Part, voxelSize: number?) : Hitbox
+function VoxelDestruction.NewHitbox(hitbox: Part, voxelSize: number, isLooped: boolean)
     local self = setmetatable({}, {__index = VoxelDestruction})
 
-    self.hitBox = hitBox
-    self.isActive = true
-    self.applyForce = true
-    self.voxelSize = voxelSize or 1
+    self.hitbox = hitbox
+    self.voxelSize = voxelSize
+    self.isActive = false
+    self.isLooped = isLooped or false
+
+    self.remainingParts = {}
 
     return self
 end
 
--- Start the destruction process
-function VoxelDestruction:StartDestruction(activeTime: number?)
-    self.isActive = true
+function VoxelDestruction:DividePart(part: BasePart, axis: Vector3)
+	local a = clonePart(part)
+	local b = clonePart(part)
 
-    if activeTime and activeTime > 0 then
-        task.delay(activeTime, function() self:DisableDestruction() end)
+	a.Size = part.Size * (-(axis/2)+Vector3.new(1,1,1))
+	a.CFrame = part.CFrame * CFrame.new(-part.Size * (Vector3.new(1,1,1)*axis/4))	
+
+	b.Size = part.Size * (-(axis/2)+Vector3.new(1,1,1))
+	b.CFrame = part.CFrame * CFrame.new(part.Size * (Vector3.new(1,1,1)*axis/4))
+
+    table.insert(self.remainingParts, a)
+    table.insert(self.remainingParts, b)
+end
+
+function VoxelDestruction:Subdivide(part: Part)
+    local check = SizeCheck(part, self.voxelSize)
+    if not check then return false end
+    
+    local x, y, z = part.Size.X, part.Size.Y, part.Size.Z
+    local greaterDimension  = math.max(part.Size.X, part.Size.Y, part.Size.Z) :: number
+
+    if greaterDimension == part.Size.X then
+        self:DividePart(part, Vector3.new(1, 0, 0))
+    elseif greaterDimension == part.Size.Y then
+        self:DividePart(part, Vector3.new(0, 1, 0))
+    elseif greaterDimension == part.Size.Z then
+        self:DividePart(part, Vector3.new(0, 0, 1))
     end
 
+    return true
+end
+
+function VoxelDestruction:StartDestruction(callback: () -> (), params: OverlapParams)
+    self.isActive = true
     task.spawn(function()
-        while self.isActive do
-            self:UnanchorInBounds()
-            task.wait()
-        end
+        self:DestructInBounds(callback, params)
     end)
 end
 
--- Disable the destruction process
-function VoxelDestruction:DisableDestruction()
-    self.isActive = false
-end
-
--- Unanchor parts in bounds and apply destruction logic
-function VoxelDestruction:UnanchorInBounds(params: OverlapParams?)
+function VoxelDestruction:DestructInBounds(callback: () -> (), params: OverlapParams)
     local parts
     repeat
-        parts = workspace:GetPartsInPart(self.hitBox, params)
-        if #parts == 0 then break end
+        parts = workspace:GetPartsInPart(self.hitbox, params)
 
-        local processedCount = 0
-        for i = 1, #parts do
-            if processedCount >= MAX_PARTS_PER_FRAME then break end
-
-            if not IsDividable(parts[i]) then
-                parts[i] = nil
-                continue
-            end
-
-            local divided = SubdividePart(parts[i], self.voxelSize)
-            if not divided then
-                parts[i]:RemoveTag("Destructable")
-                parts[i].Anchored = false
-                parts[i].Size = Vector3.new(self.voxelSize, self.voxelSize, self.voxelSize)
-                if self.applyForce then applyForce(parts[i], 150) end
-                parts[i] = nil
-            end
-
-            processedCount = processedCount + 1
+        for _, part in ipairs(parts) do
+            local handled = self:HandlePart(part, callback)
+            part = nil
         end
 
         task.wait()
-    until #parts <= 0
+    until #parts <= 0 or not self.isActive
+
+    if self.isLooped and self.isActive then self:StartDestruction(callback, params) end
+end
+
+function VoxelDestruction:HandlePart(part: BasePart, callback: () -> ())
+    if not partDividable(part) then
+        return false
+    end
+
+    local divided = self:Subdivide(part)
+    if not divided then
+        local smallerDimension = math.min(part.Size.X, part.Size.Y, part.Size.Z)
+        part.Size = Vector3.new(smallerDimension, smallerDimension, smallerDimension)
+
+        if part:HasTag(destructTaG) then part:RemoveTag(destructTaG) end
+        part.Parent = workspace
+        callback(part)
+    else
+        returnPartToCache(part)
+    end
+
+    return
+end
+
+function VoxelDestruction:GreedyMeshParts()
+
+    local availableParts = {}
+
+    for _, part in ipairs(self.remainingParts) do
+        if part and part:IsA("BasePart") then
+            table.insert(availableParts, part)
+        end
+    end
+
+    if #availableParts > 0 then
+
+    end
+
+    for _, part in ipairs(availableParts) do
+        if part then
+            part:Destroy()
+        end
+    end
+
+    self.remainingParts = {}
 end
 
 return VoxelDestruction

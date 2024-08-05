@@ -15,8 +15,14 @@
 			"$path": "src/ReplicatedFirst"
 		},
 		"ReplicatedStorage": {
-			"$path": "src/ReplicatedStorage"
-		},
+			"$className": "Folder",
+			"UIController": {
+			  "$path": "src/ReplicatedStorage/UIController.lua",
+			  "DropShadows": {
+				"$path": "src/ReplicatedStorage/DropShadows"
+			  }
+			}
+		  },
 		"ServerScriptService": {
 			"$path": "src/ServerScriptService"
 		},
