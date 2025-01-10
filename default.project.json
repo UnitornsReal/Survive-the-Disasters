@@ -15,7 +15,6 @@
       "$path": "src/ReplicatedFirst"
     },
 
-
     "ServerScriptService": {
       "$className": "ServerScriptService",
       "$ignoreUnknownInstances": true,
@@ -24,14 +23,17 @@
 
     "StarterPlayer": {
       "$className": "StarterPlayer",
+      "$ignoreUnknownInstances": true,
 
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",
+        "$ignoreUnknownInstances": true,
         "$path": "src/StarterPlayer/StarterPlayerScripts"
       },
 
       "StarterCharacterScripts": {
         "$className": "StarterCharacterScripts",
+        "$ignoreUnknownInstances": true,
         "$path": "src/StarterPlayer/StarterCharacterScripts"
       }
     },
@@ -39,30 +41,9 @@
     "Workspace": {
       "$properties": {
         "FilteringEnabled": true
-      },
-      "Baseplate": {
-        "$className": "Part",
-        "$properties": {
-          "Anchored": true,
-          "Color": [
-            0.38823,
-            0.37254,
-            0.38823
-          ],
-          "Locked": true,
-          "Position": [
-            0,
-            -10,
-            0
-          ],
-          "Size": [
-            512,
-            20,
-            512
-          ]
-        }
       }
     },
+
     "Lighting": {
       "$properties": {
         "Ambient": [
@@ -76,6 +57,7 @@
         "Technology": "Voxel"
       }
     },
+
     "SoundService": {
       "$properties": {
         "RespectFilteringEnabled": true

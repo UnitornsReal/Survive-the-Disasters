@@ -21,8 +21,8 @@ local DataManager = {
     }
 }
 
-local DataTemplate: DataTemplate = require(script.Parent.DataTemplate)
-local ProfileService = require(script.Parent.ProfileService)
+local DataTemplate: DataTemplate = require(script.DataTemplate)
+local ProfileService = require(script.ProfileService)
 
 --// Variables
 local playerProfileStore = ProfileService.GetProfileStore("PlayerDataT2", DataTemplate) 

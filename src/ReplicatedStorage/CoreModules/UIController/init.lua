@@ -72,7 +72,9 @@ function UIController.Connection(Interface: GuiObject ) : UIController
     self.TweenValues = {
         OriginalPosition = Interface.Position,
         OriginalSize = Interface.Size
-    }
+	}
+	
+	self.ClickSound = script.Click
 
     return self
 end 
@@ -121,73 +123,21 @@ function UIController:RemoveEventFunction(eventName: string, id: string)
 end
 
 --// Tween Effects
-function UIController:RegisterTweenEvent(eventName: string, size: UDim2)
+function UIController:RegisterTweenEvent(eventName: string, size: UDim2, additionalFunction: (any?) -> ()?)
     self:RegisterEvent(eventName, function ()
         local tween: Tween = TweenService:Create(self.Interface, tweenInfo, {Size = size, Position = self.TweenValues.OriginalPosition})
-        tween:Play()
+		tween:Play()
+		if additionalFunction then additionalFunction() end
     end)
 end
 
 function UIController:RegisterDefaultTweens()
-    self:RegisterTweenEvent("MouseButton1Down", UDim2.fromScale(self.TweenValues.OriginalSize.X.Scale - 0.025, self.TweenValues.OriginalSize.Y.Scale - 0.025))
+	local click = function() self.ClickSound:Play() end
+	self:RegisterTweenEvent("MouseButton1Down", UDim2.fromScale(self.TweenValues.OriginalSize.X.Scale - 0.025, self.TweenValues.OriginalSize.Y.Scale - 0.025), click)
     self:RegisterTweenEvent("MouseButton1Up", self.TweenValues.OriginalSize)
 
-    self:RegisterTweenEvent("MouseEnter", UDim2.fromScale(self.TweenValues.OriginalSize.X.Scale + 0.005, self.TweenValues.OriginalSize.Y.Scale + 0.005))
+    self:RegisterTweenEvent("MouseEnter", UDim2.fromScale(self.TweenValues.OriginalSize.X.Scale + 0.01, self.TweenValues.OriginalSize.Y.Scale + 0.005))
     self:RegisterTweenEvent("MouseLeave", self.TweenValues.OriginalSize)
-end
-
---// Additional Stuff
-function UIController:EnableTips(title: string, tip: string)
-    if not self.Tooltip then
-        local tooltip = Instance.new("TextLabel")
-        tooltip.Name = "Tooltip"
-        tooltip.Size = UDim2.new(0, 150, 0, 50)
-        tooltip.BackgroundColor3 = Color3.new(0, 0, 0)
-        tooltip.TextColor3 = Color3.new(1, 1, 1)
-        tooltip.TextWrapped = true
-        tooltip.Visible = false
-        tooltip.Parent = self.Interface.Parent
-        
-        self.Tooltip = tooltip
-    end
-
-    self.Tooltip.Text = title .. "\n" .. tip
-
-    local mouseEnterId = "tooltipMouseEnter"
-    local mouseLeaveId = "tooltipMouseLeave"
-    local isHovered = false
-
-    self:RegisterEvent("MouseEnter", function()
-        if self.Tooltip then
-            isHovered = true
-            while isHovered do
-                local mouseLocation = UserInputService:GetMouseLocation()
-                self.Tooltip.Position = UDim2.fromOffset(mouseLocation.X - 150, mouseLocation.Y - 20) -- Offset to avoid overlap
-                self.Tooltip.Visible = true
-                task.wait()
-            end
-        end
-    end, {}, mouseEnterId)
-
-    self:RegisterEvent("MouseLeave", function()
-        if self.Tooltip then
-            isHovered = false
-            self.Tooltip.Visible = false
-        end
-    end, {}, mouseLeaveId)
-end
-
-function UIController:DisableTips()
-    local mouseEnterId = "tooltipMouseEnter"
-    local mouseLeaveId = "tooltipMouseLeave"
-    
-    self:RemoveEventFunction("MouseEnter", mouseEnterId)
-    self:RemoveEventFunction("MouseLeave", mouseLeaveId)
-    
-    if self.Tooltip then
-        self.Tooltip:Destroy()
-        self.Tooltip = nil
-    end
 end
 
 --// Drop Shadows

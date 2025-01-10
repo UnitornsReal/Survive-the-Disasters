@@ -2,7 +2,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 --// Variables
-local coreModules = ReplicatedStorage.CoreModules
+local coreModules = ReplicatedStorage:WaitForChild("CoreModules")
 
 --// Modules
 local Dependencies = { -- Modules list
